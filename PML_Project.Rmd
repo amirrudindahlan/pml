@@ -1,0 +1,87 @@
+---
+title: "PML_Project"
+author: "Amirrudin Bin Dahlan"
+date: "Saturday, January 24, 2015"
+output: html_document
+---
+
+###Executive Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, dumbell of the participants and predict the manner in which they did the exercise.
+
+###Load required packages
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(kernlab)
+library(corrplot)
+library(randomForest)
+library(caret)
+```
+
+###Get and clean datasets from invalid values
+```{r, echo=TRUE}
+# download datasets
+download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile = "pml-training.csv")
+download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile = "pml-testing.csv")
+
+# read data to local variable
+dt_train <- read.csv("pml-training.csv", na.strings=c("NA",""))
+
+# get desired columns and remove unwanted fields
+dt_train <- dt_train[8:length(dt_train)]
+dt_train<-dt_train[,colSums(is.na(dt_train)) == 0]
+```
+
+###Set data partitions into training and validation
+```{r, echo=TRUE}
+# split data set
+split_dt_train <- createDataPartition(y = dt_train$classe, p = 0.7, list = FALSE)
+training <- dt_train[split_dt_train,]
+crossval <- dt_train[-split_dt_train,]
+```
+
+```{r, echo=TRUE}
+# correlation matrix shows the degree of correlation between different variables with those in the highlighted boxes as the more prevalent ones. However this does not really indicate any assurance of model's accuracy as yet. 
+correlMatrix <- cor(training[, -length(training)])
+corrplot(correlMatrix, order = "hclust", addrect = 2, method = "color", tl.cex = 0.6)
+```
+
+### Random forest function - Model Evaluation
+```{r, echo=TRUE}
+# in random forest function, error rates is calculated within function. 
+# create training model with training data set.
+model <- randomForest(classe ~ ., data = training)
+
+# model shows high correlation between the factors as we can see below based on the diagonal five 4-digit figures (etc 3904,2648 and so on) spanning from the top left to bottom right part of the table matrix. There are indications of outliers, but the percentage figures are small as shown in column 'class.error'  
+print(model)
+```
+
+### Confusion matrix - Model Evaluation
+```{r, echo=TRUE}
+# overall model accuracy shows a high value of 0.99 with small amounts of outliers in the table matrix.
+confusionMatrix(crossval$classe, predict(model, crossval))
+```
+
+### Apply test dataset to model
+```{r, echo=TRUE}
+# read data to local variable
+dt_test <- read.csv("pml-testing.csv", na.strings=c("NA",""))
+
+# get desired columns and remove unwanted fields 
+dt_test <- dt_test[8:length(dt_test)]
+dt_test<-dt_test[,colSums(is.na(dt_test)) == 0]
+
+# predict the classes of the test set
+outcome <- predict(model, dt_test)
+
+# these were codes provided by MOOC
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+# write output
+pml_write_files(outcome)
+```
+
